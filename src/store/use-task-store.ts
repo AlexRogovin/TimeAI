@@ -14,6 +14,7 @@ export interface Task {
   estimatedTime: number; // in minutes
   actualTime?: number;
   aiSuggestions?: string[];
+  googleEventId?: string; // ID of the corresponding Google Calendar event
 }
 
 interface TaskState {

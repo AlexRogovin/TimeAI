@@ -8,6 +8,7 @@ import { ThemeProvider } from "./components/layout/theme-provider";
 import "./index.css";
 import { AppRoutes } from "./routes";
 import { FineProvider } from "./hooks/use-fine";
+import { GoogleCalendarProvider } from "./contexts/google-calendar-context";
 
 const queryClient = new QueryClient();
 
@@ -16,11 +17,13 @@ createRoot(document.getElementById("root")!).render(
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <ThemeProvider>
-          <BrowserRouter>
-            <AppRoutes />
-          </BrowserRouter>
-          <Sonner />
-          <Toaster />
+          <GoogleCalendarProvider>
+            <BrowserRouter>
+              <AppRoutes />
+            </BrowserRouter>
+            <Sonner />
+            <Toaster />
+          </GoogleCalendarProvider>
         </ThemeProvider>
       </TooltipProvider>
     </QueryClientProvider>

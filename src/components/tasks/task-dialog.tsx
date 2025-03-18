@@ -22,9 +22,11 @@ import { Task, TaskPriority, useTaskStore } from "@/store/use-task-store";
 import { useState } from "react";
 import { Calendar } from "../ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
-import { format } from "date-fns";
+import { format, addMinutes } from "date-fns";
 import { cn } from "@/lib/utils";
 import { CalendarIcon } from "lucide-react";
+import { Switch } from "../ui/switch";
+import { useGoogleCalendar } from "@/contexts/google-calendar-context";
 
 interface TaskDialogProps {
   task?: Task;
@@ -43,18 +45,67 @@ export function TaskDialog({ task, trigger }: TaskDialogProps) {
       estimatedTime: 30,
     }
   );
+  const [syncWithGoogle, setSyncWithGoogle] = useState(false);
 
   const addTask = useTaskStore((state) => state.addTask);
   const updateTask = useTaskStore((state) => state.updateTask);
+  const { isAuthenticated, createEvent, editEvent } = useGoogleCalendar();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (task?.id) {
-      updateTask(task.id, formData);
-    } else {
-      addTask(formData as Omit<Task, "id">);
+    
+    try {
+      // Handle task in local store
+      if (task?.id) {
+        updateTask(task.id, formData);
+      } else {
+        addTask(formData as Omit<Task, "id">);
+      }
+
+      // Sync with Google Calendar if enabled
+      if (isAuthenticated && syncWithGoogle && formData.title && formData.dueDate) {
+        const startTime = new Date(formData.dueDate);
+        const endTime = addMinutes(startTime, formData.estimatedTime || 30);
+        const description = formData.description || '';
+
+        if (task?.id && task.googleEventId) {
+          // Update existing Google Calendar event
+          await editEvent(
+            task.googleEventId,
+            formData.title,
+            description,
+            startTime,
+            endTime
+          );
+        } else {
+          // Create new Google Calendar event
+          const event = await createEvent(
+            formData.title,
+            description,
+            startTime,
+            endTime
+          );
+          
+          // Store the Google event ID with the task
+          if (!task?.id) {
+            // For new tasks, we'll need to update it after creation
+            // This is a simplification - in a real app, you'd need to handle this more robustly
+            const tasks = useTaskStore.getState().tasks;
+            const createdTask = tasks[tasks.length - 1];
+            if (createdTask) {
+              updateTask(createdTask.id, { googleEventId: event.id });
+            }
+          } else {
+            // For existing tasks
+            updateTask(task.id, { googleEventId: event.id });
+          }
+        }
+      }
+      
+      setOpen(false);
+    } catch (error) {
+      console.error('Error saving task:', error);
     }
-    setOpen(false);
   };
 
   return (
@@ -158,6 +209,19 @@ export function TaskDialog({ task, trigger }: TaskDialogProps) {
                 }
               />
             </div>
+            
+            {isAuthenticated && (
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="sync-google"
+                  checked={syncWithGoogle}
+                  onCheckedChange={setSyncWithGoogle}
+                />
+                <Label htmlFor="sync-google">
+                  Add to Google Calendar
+                </Label>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button type="submit">{task ? "Save Changes" : "Create Task"}</Button>
