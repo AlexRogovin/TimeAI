@@ -40,9 +40,11 @@ export const loadGoogleApi = (): Promise<void> => {
             scope: GOOGLE_API_CONFIG.scope,
           })
           .then(() => {
+            console.log('Google API initialized successfully');
             resolve();
           })
           .catch((error: Error) => {
+            console.error('Error initializing Google API:', error);
             reject(error);
           });
       });
@@ -79,16 +81,21 @@ export const getEvents = async (
     throw new Error('User not signed in');
   }
 
-  const response = await window.gapi.client.calendar.events.list({
-    calendarId: 'primary',
-    timeMin: timeMin.toISOString(),
-    timeMax: timeMax.toISOString(),
-    showDeleted: false,
-    singleEvents: true,
-    orderBy: 'startTime',
-  });
+  try {
+    const response = await window.gapi.client.calendar.events.list({
+      calendarId: 'primary',
+      timeMin: timeMin.toISOString(),
+      timeMax: timeMax.toISOString(),
+      showDeleted: false,
+      singleEvents: true,
+      orderBy: 'startTime',
+    });
 
-  return response.result.items;
+    return response.result.items;
+  } catch (error) {
+    console.error('Error fetching Google Calendar events:', error);
+    throw error;
+  }
 };
 
 // Add an event to Google Calendar
@@ -115,12 +122,17 @@ export const addEvent = async (
     },
   };
 
-  const response = await window.gapi.client.calendar.events.insert({
-    calendarId: 'primary',
-    resource: event,
-  });
+  try {
+    const response = await window.gapi.client.calendar.events.insert({
+      calendarId: 'primary',
+      resource: event,
+    });
 
-  return response.result;
+    return response.result;
+  } catch (error) {
+    console.error('Error adding event to Google Calendar:', error);
+    throw error;
+  }
 };
 
 // Update an event in Google Calendar
@@ -148,13 +160,18 @@ export const updateEvent = async (
     },
   };
 
-  const response = await window.gapi.client.calendar.events.update({
-    calendarId: 'primary',
-    eventId,
-    resource: event,
-  });
+  try {
+    const response = await window.gapi.client.calendar.events.update({
+      calendarId: 'primary',
+      eventId,
+      resource: event,
+    });
 
-  return response.result;
+    return response.result;
+  } catch (error) {
+    console.error('Error updating event in Google Calendar:', error);
+    throw error;
+  }
 };
 
 // Delete an event from Google Calendar
@@ -163,8 +180,13 @@ export const deleteEvent = async (eventId: string): Promise<void> => {
     throw new Error('User not signed in');
   }
 
-  await window.gapi.client.calendar.events.delete({
-    calendarId: 'primary',
-    eventId,
-  });
+  try {
+    await window.gapi.client.calendar.events.delete({
+      calendarId: 'primary',
+      eventId,
+    });
+  } catch (error) {
+    console.error('Error deleting event from Google Calendar:', error);
+    throw error;
+  }
 };
