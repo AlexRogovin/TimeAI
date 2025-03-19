@@ -11,6 +11,7 @@ import {
   createCalendarEvent
 } from "@/lib/google-calendar-direct";
 import { Loader2 } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export function GoogleCalendarTest() {
   const [isLoading, setIsLoading] = useState(false);
@@ -18,25 +19,36 @@ export function GoogleCalendarTest() {
   const [isSignedIn, setIsSignedIn] = useState(false);
   const [events, setEvents] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<string>("Not initialized");
 
   // Initialize Google API on component mount
   useEffect(() => {
     const initialize = async () => {
       setIsLoading(true);
       setError(null);
+      setStatus("Loading Google API...");
+      
       try {
         await loadGoogleApiScript();
+        setStatus("Initializing Google API client...");
         await initGoogleApiClient();
         setIsInitialized(true);
+        setStatus("Checking sign-in status...");
         const signedIn = checkSignInStatus();
         setIsSignedIn(signedIn);
+        
         if (signedIn) {
+          setStatus("Fetching calendar events...");
           const calendarEvents = await fetchCalendarEvents();
           setEvents(calendarEvents);
+          setStatus("Ready - Signed in");
+        } else {
+          setStatus("Ready - Not signed in");
         }
       } catch (err: any) {
         console.error("Initialization error:", err);
         setError(err.message || "Failed to initialize Google Calendar");
+        setStatus("Error during initialization");
       } finally {
         setIsLoading(false);
       }
@@ -48,14 +60,19 @@ export function GoogleCalendarTest() {
   const handleSignIn = async () => {
     setIsLoading(true);
     setError(null);
+    setStatus("Signing in...");
+    
     try {
       await signInUser();
       setIsSignedIn(true);
+      setStatus("Fetching calendar events...");
       const calendarEvents = await fetchCalendarEvents();
       setEvents(calendarEvents);
+      setStatus("Ready - Signed in");
     } catch (err: any) {
       console.error("Sign in error:", err);
       setError(err.message || "Failed to sign in to Google Calendar");
+      setStatus("Error during sign in");
     } finally {
       setIsLoading(false);
     }
@@ -64,13 +81,17 @@ export function GoogleCalendarTest() {
   const handleSignOut = async () => {
     setIsLoading(true);
     setError(null);
+    setStatus("Signing out...");
+    
     try {
       await signOutUser();
       setIsSignedIn(false);
       setEvents([]);
+      setStatus("Ready - Not signed in");
     } catch (err: any) {
       console.error("Sign out error:", err);
       setError(err.message || "Failed to sign out from Google Calendar");
+      setStatus("Error during sign out");
     } finally {
       setIsLoading(false);
     }
@@ -79,6 +100,8 @@ export function GoogleCalendarTest() {
   const handleCreateEvent = async () => {
     setIsLoading(true);
     setError(null);
+    setStatus("Creating test event...");
+    
     try {
       const now = new Date();
       const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
@@ -90,12 +113,14 @@ export function GoogleCalendarTest() {
         oneHourLater
       );
       
-      // Refresh events
+      setStatus("Refreshing events...");
       const calendarEvents = await fetchCalendarEvents();
       setEvents(calendarEvents);
+      setStatus("Ready - Event created");
     } catch (err: any) {
       console.error("Create event error:", err);
       setError(err.message || "Failed to create event in Google Calendar");
+      setStatus("Error creating event");
     } finally {
       setIsLoading(false);
     }
@@ -108,17 +133,11 @@ export function GoogleCalendarTest() {
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {error && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-              <p>{error}</p>
-            </div>
-          )}
-
           <div className="flex items-center justify-between">
             <div>
-              <p className="font-medium">Status:</p>
+              <p className="font-medium">Status: {status}</p>
               <p className="text-sm text-muted-foreground">
-                {isInitialized ? "Initialized" : "Not Initialized"} | 
+                {isInitialized ? "API Initialized" : "API Not Initialized"} | 
                 {isSignedIn ? " Signed In" : " Not Signed In"}
               </p>
             </div>
@@ -126,7 +145,7 @@ export function GoogleCalendarTest() {
             {isLoading ? (
               <Button disabled>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Loading...
+                {status}...
               </Button>
             ) : isSignedIn ? (
               <div className="space-x-2">
@@ -144,18 +163,31 @@ export function GoogleCalendarTest() {
             )}
           </div>
 
+          {error && (
+            <Alert variant="destructive">
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
           {isSignedIn && (
             <div className="mt-4">
-              <h3 className="text-lg font-medium mb-2">Your Calendar Events</h3>
+              <h3 className="text-lg font-medium mb-2">Your Calendar Events ({events.length})</h3>
               {events.length > 0 ? (
                 <div className="space-y-2 max-h-60 overflow-y-auto">
                   {events.map((event) => (
                     <div key={event.id} className="p-2 border rounded">
                       <p className="font-medium">{event.summary}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {new Date(event.start.dateTime).toLocaleString()} - 
-                        {new Date(event.end.dateTime).toLocaleTimeString()}
-                      </p>
+                      {event.start?.dateTime ? (
+                        <p className="text-sm text-muted-foreground">
+                          {new Date(event.start.dateTime).toLocaleString()} - 
+                          {new Date(event.end.dateTime).toLocaleTimeString()}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">
+                          All day event on {event.start?.date}
+                        </p>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -164,6 +196,17 @@ export function GoogleCalendarTest() {
               )}
             </div>
           )}
+          
+          <div className="mt-4 p-3 bg-muted rounded-md">
+            <h3 className="text-sm font-medium mb-2">Troubleshooting Tips:</h3>
+            <ul className="text-xs space-y-1 text-muted-foreground">
+              <li>• Make sure popup blockers are disabled for this site</li>
+              <li>• Check that third-party cookies are allowed in your browser</li>
+              <li>• Ensure you're using a Google account with calendar access</li>
+              <li>• Try using Chrome or Edge for best compatibility</li>
+              <li>• If issues persist, check browser console for detailed errors</li>
+            </ul>
+          </div>
         </div>
       </CardContent>
     </Card>
