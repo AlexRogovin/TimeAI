@@ -1,21 +1,28 @@
 import { Routes, Route } from "react-router-dom";
-import { ThemeProvider } from "./components/theme-provider";
-import Dashboard from "./pages/Dashboard";
-import CalendarPage from "./pages/Calendar";
-import SettingsPage from "./pages/Settings";
-import Layout from "./components/Layout";
 
 function App() {
   return (
-    <ThemeProvider defaultTheme="system" storageKey="timeai-theme">
-      <Routes>
-        <Route path="/" element={<Layout />}>
-          <Route index element={<Dashboard />} />
-          <Route path="calendar" element={<CalendarPage />} />
-          <Route path="settings" element={<SettingsPage />} />
-        </Route>
-      </Routes>
-    </ThemeProvider>
+    <div className="min-h-screen bg-background text-foreground">
+      <header className="border-b p-4">
+        <h1 className="text-2xl font-bold">TimeAI</h1>
+      </header>
+      <main className="container mx-auto p-4">
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/calendar" element={<div>Calendar Page</div>} />
+          <Route path="/settings" element={<div>Settings Page</div>} />
+        </Routes>
+      </main>
+    </div>
+  );
+}
+
+function Home() {
+  return (
+    <div>
+      <h2 className="text-xl font-semibold mb-4">Dashboard</h2>
+      <p>Welcome to TimeAI!</p>
+    </div>
   );
 }
 
