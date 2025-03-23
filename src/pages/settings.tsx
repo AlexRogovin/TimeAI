@@ -9,7 +9,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { GoogleCalendarTest } from "@/components/calendar/google-calendar-test";
+import { GoogleCalendarIntegration } from "@/components/calendar/google-calendar-integration";
 
 export default function SettingsPage() {
   return (
@@ -20,7 +20,7 @@ export default function SettingsPage() {
 
       <div className="grid gap-4 md:grid-cols-2">
         <div className="md:col-span-2">
-          <GoogleCalendarTest />
+          <GoogleCalendarIntegration />
         </div>
 
         <Card>

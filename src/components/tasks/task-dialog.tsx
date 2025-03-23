@@ -24,9 +24,15 @@ import { Calendar } from "../ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { format, addMinutes } from "date-fns";
 import { cn } from "@/lib/utils";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, Loader2 } from "lucide-react";
 import { Switch } from "../ui/switch";
-import { useGoogleCalendar } from "@/contexts/google-calendar-context";
+import { Alert, AlertDescription } from "../ui/alert";
+import { 
+  isUserSignedIn, 
+  createCalendarEvent, 
+  updateCalendarEvent, 
+  deleteCalendarEvent 
+} from "@/lib/google-calendar";
 
 interface TaskDialogProps {
   task?: Task;
@@ -45,33 +51,32 @@ export function TaskDialog({ task, trigger }: TaskDialogProps) {
       estimatedTime: 30,
     }
   );
-  const [syncWithGoogle, setSyncWithGoogle] = useState(false);
+  const [syncWithGoogle, setSyncWithGoogle] = useState(task?.googleEventId ? true : false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const addTask = useTaskStore((state) => state.addTask);
   const updateTask = useTaskStore((state) => state.updateTask);
-  const { isAuthenticated, createEvent, editEvent } = useGoogleCalendar();
+  const deleteTask = useTaskStore((state) => state.deleteTask);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsLoading(true);
+    setError(null);
     
     try {
-      // Handle task in local store
-      if (task?.id) {
-        updateTask(task.id, formData);
-      } else {
-        addTask(formData as Omit<Task, "id">);
-      }
-
-      // Sync with Google Calendar if enabled
-      if (isAuthenticated && syncWithGoogle && formData.title && formData.dueDate) {
+      // Handle Google Calendar integration
+      let googleEventId = task?.googleEventId;
+      
+      if (isUserSignedIn() && syncWithGoogle && formData.title && formData.dueDate) {
         const startTime = new Date(formData.dueDate);
         const endTime = addMinutes(startTime, formData.estimatedTime || 30);
         const description = formData.description || '';
-
-        if (task?.id && task.googleEventId) {
+        
+        if (googleEventId) {
           // Update existing Google Calendar event
-          await editEvent(
-            task.googleEventId,
+          await updateCalendarEvent(
+            googleEventId,
             formData.title,
             description,
             startTime,
@@ -79,32 +84,33 @@ export function TaskDialog({ task, trigger }: TaskDialogProps) {
           );
         } else {
           // Create new Google Calendar event
-          const event = await createEvent(
+          const event = await createCalendarEvent(
             formData.title,
             description,
             startTime,
             endTime
           );
-          
-          // Store the Google event ID with the task
-          if (!task?.id) {
-            // For new tasks, we'll need to update it after creation
-            // This is a simplification - in a real app, you'd need to handle this more robustly
-            const tasks = useTaskStore.getState().tasks;
-            const createdTask = tasks[tasks.length - 1];
-            if (createdTask) {
-              updateTask(createdTask.id, { googleEventId: event.id });
-            }
-          } else {
-            // For existing tasks
-            updateTask(task.id, { googleEventId: event.id });
-          }
+          googleEventId = event.id;
         }
+      } else if (isUserSignedIn() && !syncWithGoogle && task?.googleEventId) {
+        // Remove from Google Calendar if sync is turned off
+        await deleteCalendarEvent(task.googleEventId);
+        googleEventId = undefined;
+      }
+      
+      // Update local task store
+      if (task?.id) {
+        updateTask(task.id, { ...formData, googleEventId });
+      } else {
+        addTask({ ...formData, googleEventId } as Omit<Task, "id">);
       }
       
       setOpen(false);
-    } catch (error) {
-      console.error('Error saving task:', error);
+    } catch (err: any) {
+      console.error('Error saving task:', err);
+      setError(err.message || 'Failed to save task');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -133,6 +139,7 @@ export function TaskDialog({ task, trigger }: TaskDialogProps) {
                   setFormData({ ...formData, title: e.target.value })
                 }
                 placeholder="Task title"
+                required
               />
             </div>
             <div className="grid gap-2">
@@ -170,7 +177,7 @@ export function TaskDialog({ task, trigger }: TaskDialogProps) {
                     mode="single"
                     selected={formData.dueDate}
                     onSelect={(date) =>
-                      setFormData({ ...formData, dueDate: date || new Date() })
+                      setFormData({ ...formData, dueDate:date || new Date() })
                     }
                     initialFocus
                   />
@@ -207,10 +214,12 @@ export function TaskDialog({ task, trigger }: TaskDialogProps) {
                     estimatedTime: parseInt(e.target.value),
                   })
                 }
+                min="1"
+                required
               />
             </div>
             
-            {isAuthenticated && (
+            {isUserSignedIn() && (
               <div className="flex items-center space-x-2">
                 <Switch
                   id="sync-google"
@@ -218,13 +227,22 @@ export function TaskDialog({ task, trigger }: TaskDialogProps) {
                   onCheckedChange={setSyncWithGoogle}
                 />
                 <Label htmlFor="sync-google">
-                  Add to Google Calendar
+                  {task?.googleEventId ? "Keep in Google Calendar" : "Add to Google Calendar"}
                 </Label>
               </div>
             )}
+            
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
           </div>
           <DialogFooter>
-            <Button type="submit">{task ? "Save Changes" : "Create Task"}</Button>
+            <Button type="submit" disabled={isLoading}>
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {task ? "Save Changes" : "Create Task"}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>
